@@ -9,28 +9,47 @@ import XCTest
 @testable import Appetizing
 
 final class AppetizingTests: XCTestCase {
+    let viewModel = ContentView.ViewModel()
+    var jsonEncoder: JSONEncoder!
+    var jsonDecoder: JSONDecoder!
+    var firstRecipe: Recipe!
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+        jsonEncoder = JSONEncoder()
+        jsonDecoder = JSONDecoder()
+        firstRecipe = Recipe.sample[0]
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    func testDecoder() {
+        let jsonData = try! jsonEncoder.encode(firstRecipe)
+        let secondRecipe = try? jsonDecoder.decode(Recipe.self, from: jsonData)
+
+        XCTAssertNotNil(secondRecipe)
+        XCTAssertEqual(firstRecipe.name, secondRecipe!.name)
+        XCTAssertEqual(firstRecipe.photoURLSmall, secondRecipe!.photoURLSmall)
     }
 
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
+    @MainActor
+    func testSuccessfulDataFetching() async throws {
+        let successfulDataTask = Task { try await viewModel.fetchRecipes(from: Endpoints.successfulData.urlString) }
+
+        try await successfulDataTask.value
+        XCTAssertNotEqual(viewModel.recipes, [])
     }
 
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
-        }
+    @MainActor
+    func testMalformedDataFetching() async throws {
+        let malformedDataTask = Task { try await viewModel.fetchRecipes(from: Endpoints.malformedData.urlString) }
+
+        try await malformedDataTask.value
+        XCTAssertEqual(viewModel.errorMessage, "Invalid data received. Please try again later.")
     }
 
+    @MainActor
+    func testEmptyDataFetching() async throws {
+        let emptyDataTask = Task { try await viewModel.fetchRecipes(from: Endpoints.emptyData.urlString) }
+
+        try await emptyDataTask.value
+        XCTAssertEqual(viewModel.recipes, [])
+    }
 }
